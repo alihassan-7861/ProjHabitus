@@ -1,0 +1,626 @@
+{% extends 'vectorizer_tool/main.html' %} {% load static %} {% block content %}
+<style>
+  :root {
+    --accent: #ff503c;
+    --text-dark: #3c231e;
+    --text-light: #ffffff;
+  }
+
+  .download-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    color: var(--text-dark);
+    padding: 25px 35px;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(60, 35, 30, 0.1);
+    z-index: 9999;
+  }
+
+  .download-dialog.hidden {
+    display: none;
+  }
+
+  .download-dialog h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+  }
+
+  .download-dialog label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 15px;
+  }
+
+  .download-dialog button {
+    background: var(--accent);
+    color: var(--text-light);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .download-dialog button:hover {
+    background: #e6452c;
+    transform: scale(1.05);
+  }
+
+  .download-section {
+    text-align: center;
+    margin-top: 30px;
+  }
+
+  .download-btn {
+    background: var(--accent);
+    color: white;
+    padding: 15px 30px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .download-btn::before {
+    content: "⬇️";
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+  }
+
+  .download-btn::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%);
+    transition: left 0.4s ease;
+    z-index: -1;
+  }
+
+  .download-btn:hover::after {
+    left: 0;
+  }
+
+  .download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(17, 153, 142, 0.4);
+  }
+
+  .download-btn:hover::before {
+    transform: scale(1.2) rotate(10deg);
+  }
+
+  /* NEW: Box Requirements Styles */
+  .box-requirements-section {
+    margin: 30px;
+    padding: 30px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #f5f7fa 100%);
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  }
+
+  .box-requirements-title {
+    font-size: 1.8em;
+    color: var(--text-dark);
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .box-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .box-item {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+  }
+
+  .box-item:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent);
+  }
+
+  .color-preview {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    border: 3px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  }
+
+  .box-info {
+    flex: 1;
+  }
+
+  .box-count {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 5px;
+  }
+
+  .box-label {
+    font-size: 16px;
+    color: var(--text-dark);
+    font-weight: 500;
+  }
+
+  .box-summary {
+    margin-top: 30px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 15px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 20px;
+    color: var(--text-dark);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .box-summary .total-highlight {
+    color: var(--accent);
+    font-size: 1.2em;
+    text-shadow: 0 2px 4px rgba(255, 80, 60, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .box-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .box-requirements-section {
+      margin: 15px;
+      padding: 20px;
+    }
+  }
+</style>
+
+<div class="container">
+  <div class="header">
+    <h1 class="page-title">Paint-by-Number PDF Generator</h1>
+    <div class="description">
+      <div class="indicator"></div>
+      Select an image (must use the 24-color palette) to generate your
+      paint-by-number file.
+    </div>
+  </div>
+
+  <div class="color-palette-section">
+    <div class="compact-grid" id="compactGrid"></div>
+  </div>
+
+  <div class="image-section">
+    <div class="image-container">
+      <div class="image-panel">
+        <div class="panel-title">Original Image</div>
+        <div class="upload-area">
+          <div class="upload-placeholder" id="uploadPlaceholder">
+            <div class="upload-text">Upload Image</div>
+            <div class="upload-subtext">Click to browse or drag and drop</div>
+            <button
+              class="browse-btn"
+              type="button"
+              onclick="triggerImageInput()"
+            >
+              Choose File
+            </button>
+            <p>Supports: JPG, PNG, GIF<br />Max size: 10MB</p>
+          </div>
+          <div class="uploaded-wrapper hidden" id="uploadedWrapper">
+            <img id="uploadedImage" src="" alt="Uploaded image" />
+            <button
+              class="browse-btn"
+              type="button"
+              onclick="triggerImageInput()"
+            >
+              Change Image
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="image-panel">
+        <div class="panel-title">Generated Output</div>
+        <div class="output-area">
+          <div class="output-placeholder" id="outputPlaceholder">
+            <p>Your paint-by-number file will appear here</p>
+          </div>
+          <div class="hidden" id="outputResult">
+            <p>
+              File generated successfully. Click download button to download!
+            </p>
+            <img
+              id="outputPreview"
+              src=""
+              alt="Generated output"
+              style="max-width: 100%; margin-top: 10px"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Box Requirements Section -->
+  <div class="box-requirements-section hidden" id="boxRequirementsSection">
+    <div class="box-requirements-title">Color Box Requirements</div>
+    <div class="box-grid" id="boxGrid"></div>
+    <div class="box-summary" id="boxSummary"></div>
+  </div>
+
+  <div
+    id="loadingSpinner"
+    class="hidden"
+    style="text-align: center; margin-top: 20px"
+  >
+    <img
+      src="{% static 'images/spinner.png' %}"
+      alt="Loading..."
+      width="50"
+      height="50"
+    />
+  </div>
+
+  <div style="text-align: center; margin-top: 30px">
+    <button
+      class="generate-btn"
+      id="generateBtn"
+      onclick="generateSkeleton()"
+      disabled
+    >
+      Generate
+    </button>
+  </div>
+
+  <input
+    type="file"
+    id="imageInput"
+    class="file-input"
+    accept="image/*"
+    onchange="handleFileSelect(event)"
+    style="display: none"
+  />
+
+  <!-- ✅ Dialog appears only when download is clicked -->
+  <div id="downloadDialog" class="download-dialog hidden">
+    <h3>Choose File Format</h3>
+    <label><input type="radio" name="format" value="pdf" checked /> PDF</label
+    ><br />
+    <label><input type="radio" name="format" value="jpeg" /> JPEG</label
+    ><br /><br />
+    <button onclick="downloadInSelectedFormat()">Download</button>
+  </div>
+
+  <!-- ✅ Modified download trigger -->
+  <div class="download-section hidden" id="finalDownloadButtonWrapper">
+    <button class="download-btn" onclick="showDownloadDialog()">
+      Download File
+    </button>
+  </div>
+</div>
+
+<script>
+  const colorPalette = [
+    { hex: "#FFFFFF", name: "White" },
+    { hex: "#1A1A1A", name: "Black" },
+    { hex: "#DADADA", name: "Light Gray" },
+    { hex: "#999999", name: "Medium Gray" },
+    { hex: "#B7D79A", name: "Light Green" },
+    { hex: "#4C8C4A", name: "Medium Green" },
+    { hex: "#2E472B", name: "Dark Green" },
+    { hex: "#FDE74C", name: "Bright Yellow" },
+    { hex: "#F5C243", name: "Golden Yellow" },
+    { hex: "#F28C28", name: "Orange" },
+    { hex: "#C85A27", name: "Dark Orange" },
+    { hex: "#F88379", name: "Light Red" },
+    { hex: "#D63E3E", name: "Medium Red" },
+    { hex: "#8C1C13", name: "Dark Red" },
+    { hex: "#AED9E0", name: "Light Blue" },
+    { hex: "#4A90E2", name: "Medium Blue" },
+    { hex: "#1B3B6F", name: "Dark Blue" },
+    { hex: "#3CCFCF", name: "Cyan" },
+    { hex: "#FBE3D4", name: "Light Peach" },
+    { hex: "#D5A97B", name: "Beige" },
+    { hex: "#5C3B28", name: "Brown" },
+    { hex: "#F5E0C3", name: "Cream" },
+    { hex: "#A24B7B", name: "Purple" },
+    { hex: "#FFCFD8", name: "Light Pink" },
+  ];
+
+  // Store box requirements globally
+  let currentBoxRequirements = {};
+
+  function generateLabel(index) {
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return `${letters[Math.floor(index / 10)]}${index % 10}`;
+  }
+
+  function getContrastColor(hex) {
+    const r = parseInt(hex.substr(1, 2), 16);
+    const g = parseInt(hex.substr(3, 2), 16);
+    const b = parseInt(hex.substr(5, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128 ? "#000" : "#fff";
+  }
+
+  function createCompactGrid() {
+    const grid = document.getElementById("compactGrid");
+    colorPalette.forEach((color, index) => {
+      const label = generateLabel(index);
+      const dot = document.createElement("div");
+      dot.className = "color-dot";
+      dot.style.backgroundColor = color.hex;
+      dot.style.color = getContrastColor(color.hex);
+      dot.innerHTML = `${label}
+            <div class="tooltip">
+                <strong>${color.name}</strong><br>
+                ${color.hex}<br>
+                Label: ${label}
+            </div>`;
+      grid.appendChild(dot);
+    });
+  }
+
+  function displayBoxRequirements(boxRequirements) {
+    const boxGrid = document.getElementById("boxGrid");
+    const boxSummary = document.getElementById("boxSummary");
+
+    boxGrid.innerHTML = "";
+    let totalBoxes = 0;
+
+    // Sort the box requirements by label for consistent display
+    const sortedRequirements = Object.entries(boxRequirements).sort(
+      ([a], [b]) => a.localeCompare(b)
+    );
+
+    sortedRequirements.forEach(([label, boxCount]) => {
+      totalBoxes += boxCount;
+
+      // Find the color for this label
+      const colorIndex = colorPalette.findIndex(
+        (_, index) => generateLabel(index) === label
+      );
+      const color = colorPalette[colorIndex] || {
+        hex: "#cccccc",
+        name: "Unknown",
+      };
+
+      const boxItem = document.createElement("div");
+      boxItem.className = "box-item";
+      boxItem.innerHTML = `
+            <div class="color-preview" style="background-color: ${
+              color.hex
+            }; color: ${getContrastColor(color.hex)}">
+                ${label}
+            </div>
+            <div class="box-info">
+                <div class="box-count">${boxCount} box${
+        boxCount > 1 ? "es" : ""
+      }</div>
+                <div class="box-label">${color.name}</div>
+            </div>
+        `;
+      boxGrid.appendChild(boxItem);
+    });
+
+    boxSummary.innerHTML = `📦 Total Color Boxes Required: <span class="total-highlight">${totalBoxes}</span>`;
+  }
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const imageDataUrl = e.target.result;
+      sessionStorage.setItem("vectorizedImage", imageDataUrl);
+      document.getElementById("uploadedImage").src = imageDataUrl;
+      document.getElementById("uploadPlaceholder").classList.add("hidden");
+      document.getElementById("uploadedWrapper").classList.remove("hidden");
+      document.getElementById("generateBtn").disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function triggerImageInput() {
+    const input = document.getElementById("imageInput");
+    input.value = "";
+    input.click();
+  }
+
+  function generateSkeleton() {
+    const input = document.getElementById("imageInput");
+    const file = input.files[0];
+
+    const formData = new FormData();
+    formData.append("format", "jpeg");
+    formData.append("preview", "true"); // NEW: Add preview flag
+
+    if (file) {
+      formData.append("image", file);
+    } else {
+      const base64 = sessionStorage.getItem("vectorizedImage");
+      if (!base64) {
+        alert("❌ No image found to upload.");
+        return;
+      }
+      formData.append("base64_image", base64);
+    }
+
+    document.getElementById("loadingSpinner").classList.remove("hidden");
+    document.getElementById("generateBtn").disabled = true;
+
+    fetch("/generate-pbn/", {
+      method: "POST",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Generation failed.");
+        return response.json();
+      })
+      .then((data) => {
+        console.log("📦 Received data:", data); // Debug log
+
+        // Handle the response - display preview image
+        if (data.image_url) {
+          document.getElementById("outputPreview").src = data.image_url;
+            sessionStorage.setItem("generatedJPEG", data.image_url);
+        }
+
+        // Display REAL box requirements from backend
+        if (
+          data.box_requirements &&
+          Object.keys(data.box_requirements).length > 0
+        ) {
+          console.log("📦 Real box requirements:", data.box_requirements); // Debug log
+          currentBoxRequirements = data.box_requirements;
+          displayBoxRequirements(currentBoxRequirements);
+          document
+            .getElementById("boxRequirementsSection")
+            .classList.remove("hidden");
+        } else {
+          console.log("⚠️ No box requirements received from backend");
+          // Only show error message, don't use mock data
+          document
+            .getElementById("boxRequirementsSection")
+            .classList.add("hidden");
+        }
+
+        document.getElementById("outputPlaceholder").classList.add("hidden");
+        document.getElementById("outputResult").classList.remove("hidden");
+        document
+          .getElementById("finalDownloadButtonWrapper")
+          .classList.remove("hidden");
+      })
+      .catch((err) => {
+        console.error("❌ Generation error:", err);
+        alert("❌ Error: " + err.message);
+
+        // Don't show mock data on error - let user know there's an issue
+        document
+          .getElementById("boxRequirementsSection")
+          .classList.add("hidden");
+      })
+      .finally(() => {
+        document.getElementById("loadingSpinner").classList.add("hidden");
+        document.getElementById("generateBtn").disabled = false;
+      });
+  }
+
+  function showDownloadDialog() {
+    document.getElementById("downloadDialog").classList.remove("hidden");
+  }
+
+  function downloadInSelectedFormat() {
+    const format = document.querySelector('input[name="format"]:checked').value;
+    const input = document.getElementById("imageInput");
+    const file = input.files[0];
+
+    const formData = new FormData();
+    formData.append("format", format);
+    // Don't add preview flag for actual downloads
+
+    if (file) {
+      formData.append("image", file);
+    } else {
+      const base64 = sessionStorage.getItem("vectorizedImage");
+      if (!base64) {
+        alert("❌ No image to download.");
+        return;
+      }
+      formData.append("base64_image", base64);
+    }
+
+    document.getElementById("downloadDialog").classList.add("hidden");
+    document.getElementById("loadingSpinner").classList.remove("hidden");
+
+    fetch("/generate-pbn/", {
+      method: "POST",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Download failed.");
+        return response.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = format === "pdf" ? "habitus.pdf" : "habitus.jpeg";
+        a.click();
+        URL.revokeObjectURL(url); // Clean up
+      })
+      .catch((err) => alert("❌ Error: " + err.message))
+      .finally(() => {
+        document.getElementById("loadingSpinner").classList.add("hidden");
+      });
+  }
+
+  // Drag and drop functionality
+  document.querySelector(".upload-area").addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.currentTarget.classList.add("dragover");
+  });
+  document.querySelector(".upload-area").addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("dragover");
+  });
+  document.querySelector(".upload-area").addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("dragover");
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].type.startsWith("image/")) {
+      document.getElementById("imageInput").files = files;
+      handleFileSelect({ target: { files: files } });
+    }
+  });
+
+ document.addEventListener("DOMContentLoaded", () => {
+    createCompactGrid();
+
+    // 🚫 Clear any stored image on page load
+    sessionStorage.removeItem("vectorizedImage");
+    sessionStorage.removeItem("generatedJPEG");
+
+    // 🧹 Reset the UI to default state
+    document.getElementById("uploadPlaceholder").classList.remove("hidden");
+    document.getElementById("uploadedWrapper").classList.add("hidden");
+    document.getElementById("generateBtn").disabled = true;
+    document.getElementById("outputPlaceholder").classList.remove("hidden");
+    document.getElementById("outputResult").classList.add("hidden");
+    document.getElementById("finalDownloadButtonWrapper").classList.add("hidden");
+    document.getElementById("boxRequirementsSection").classList.add("hidden");
+});
+
+</script>
+{% endblock content %}
