@@ -36,8 +36,8 @@ class VectorizeImageView(APIView):
         if serializer.is_valid():
             validated = serializer.validated_data
 
-            api_id = os.environ.get("VECTORIZER_API_ID")
-            api_key = os.environ.get("VECTORIZER_API_KEY")
+             api_id = "vkt4edz226p86pe"
+            api_key = "opd1sp1godk9s4j2c7jf5f4au7vu5ij35mcprl1odts7479mcgf8"
 
             if not api_id or not api_key:
                 return Response({"error": "Missing Vectorizer API credentials"}, status=500)
