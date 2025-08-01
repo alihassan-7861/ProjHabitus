@@ -157,11 +157,11 @@ class VectorizeImageView(APIView):
         if serializer.is_valid():
             validated = serializer.validated_data
             image = validated["image"]
-            output_format = validated.get("output_format", "svg").lower()
+esponse({"error": "Missing Vectorizer API credentials"}, status=500)
 
-            try:
-                palette_obj = ColorPalette.objects.latest("id")
-            except ColorPalette.DoesNotExist:
+            image = validated['image']
+>>>>>>> 621520af405d207041c188a782761be02fda5666
+         except ColorPalette.DoesNotExist:
                 return Response({"error": "No color palette found in database."}, status=400)
 
             # 🎨 Use raw palette with tolerance (e.g., "#FFFFFF ~ 0.02; #000000 ~ 0.01")
