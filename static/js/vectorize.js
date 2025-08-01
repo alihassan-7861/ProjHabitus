@@ -1,4 +1,3 @@
-
 const CONFIG = {
     tooltips: {
         defaultValues: {
@@ -17,7 +16,6 @@ const CONFIG = {
         maxDetail: 1.0,
         minArea: 45.0,
         maxArea: 100.0,
-       
     },
     allowedImageTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
 };
@@ -54,13 +52,13 @@ const Utils = {
             transform: 'translateX(400px)',
             transition: 'transform 0.3s ease'
         });
-       const colors = {
-                info: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3498db',
-                success: getComputedStyle(document.documentElement).getPropertyValue('--success').trim() || '#2ecc71',
-                warning: getComputedStyle(document.documentElement).getPropertyValue('--warning').trim() || '#f39c12',
-                error: getComputedStyle(document.documentElement).getPropertyValue('--error').trim() || '#e74c3c'
-            };
-notification.style.backgroundColor = colors[type] || colors.info;
+        const colors = {
+            info: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#3498db',
+            success: getComputedStyle(document.documentElement).getPropertyValue('--success').trim() || '#2ecc71',
+            warning: getComputedStyle(document.documentElement).getPropertyValue('--warning').trim() || '#f39c12',
+            error: getComputedStyle(document.documentElement).getPropertyValue('--error').trim() || '#e74c3c'
+        };
+        notification.style.backgroundColor = colors[type] || colors.info;
         document.body.appendChild(notification);
         setTimeout(() => { notification.style.transform = 'translateX(0)'; }, 100);
         setTimeout(() => {
@@ -162,38 +160,43 @@ class ImageUploadManager {
         reader.readAsDataURL(file);
     }
 
-    showOutput(blob) {
-    const ext = blob.type.includes('svg') ? 'svg' : 'png';
-    const contentType = blob.type;
+   showOutputFromURL(url) {
+    const fileExtension = url.split('.').pop().toLowerCase();
+    const isSVG = fileExtension === 'svg';
 
-    const url = URL.createObjectURL(new Blob([blob], { type: contentType }));
-
-    // Show image in output area
     this.outputArea.innerHTML = `
         <div class="output-result">
             <p class="vector-success">✓ Vectorization Complete!</p>
-            <img id="vectorResultImage" src="${url}" alt="Vectorized Output" onerror="this.style.display='none'; Utils.showNotification('⚠️ Failed to render the output image', 'error');"/>
+            ${isSVG
+                ? `<div id="svgContainer">Loading SVG preview...</div>`
+                : `<img id="vectorResultImage" src="${url}" alt="Vectorized Output" onerror="this.style.display='none'; Utils.showNotification('⚠️ Failed to render the output image', 'error');"/>`
+            }
         </div>
     `;
 
-    // Store DataURL for preview or download
-    const reader = new FileReader();
-    reader.onload = () => {
-        sessionStorage.setItem("vectorizedImage", reader.result);
-    };
-    reader.readAsDataURL(blob);
+    if (isSVG) {
+        fetch(url)
+            .then(response => response.text())
+            .then(svg => {
+                document.getElementById('svgContainer').innerHTML = svg;
+            })
+            .catch(() => {
+                document.getElementById('svgContainer').innerHTML = `<p style="color:red;">⚠️ Failed to load SVG preview.</p>`;
+            });
+    }
 
-    // Show Continue button
+    // Store image URL (not base64!) in sessionStorage
+    sessionStorage.setItem("vectorizedImageUrl", url);
+
     const continueBtnWrapper = Utils.getEl("continueBtnWrapper");
     if (continueBtnWrapper) continueBtnWrapper.style.display = "block";
 
-    // Remove any old download buttons
     const existingWrapper = document.querySelector('.download-wrapper');
     if (existingWrapper) existingWrapper.remove();
 }
+
 }
 
-// VectorizerApp — unchanged except handleSubmit
 class VectorizerApp {
     constructor() {
         this.form = Utils.getEl('parametersForm');
@@ -232,7 +235,7 @@ class VectorizerApp {
     }
 
     initInputConstraints() {
-        const constraints = [];
+        const constraints = []; // currently unused
         constraints.forEach(constraint => {
             const input = Utils.getEl(constraint.id);
             if (input) {
@@ -275,29 +278,53 @@ class VectorizerApp {
             method: 'POST',
             body: data
         })
-        .then(res => {
-            Utils.getEl('loadingSpinner').style.display = 'none';
-            if (!res.ok) throw new Error('Request failed');
-            return res.blob();
-        })
-        .then(blob => {
-            this.uploadManager.showOutput(blob);
-            Utils.showNotification('✅ Vectorization completed!', 'success');
-        })
-        .catch(err => {
-            console.error(err);
-            Utils.getEl('loadingSpinner').style.display = 'none';
-            Utils.showNotification('Server error. Please try again.', 'error');
-        });
+       .then(async res => {
+    Utils.getEl('loadingSpinner').style.display = 'none';
+    const result = await res.json();
+
+    if (res.status === 402) {
+        Utils.showNotification(`${result.error}. ${result.suggestion}`, 'error');
+        return;
+    }
+
+    if (!res.ok) {
+        const msg = result?.error || 'Server error';
+        throw new Error(msg);
+    }
+
+    if (!result.vector_url) {
+        throw new Error("Missing vectorized image URL");
+    }
+    if (result.job_id) {
+    sessionStorage.setItem("vector_job_id", result.job_id);
+} else {
+    console.warn("Missing job_id in response");
+}
+
+    this.uploadManager.showOutputFromURL(result.vector_url);
+    Utils.showNotification('✅ Vectorization completed!', 'success');
+})
+.catch(err => {
+    console.error(err);
+    Utils.getEl('loadingSpinner').style.display = 'none';
+    Utils.showNotification(err.message || 'Server error. Please try again.', 'error');
+});
     }
 }
 
-// ✅ Continue Button Logic (used in HTML)
 function continueToNextPage() {
-    window.location.href = "/test-pbn/";
+    const jobId = sessionStorage.getItem("vector_job_id");
+    console.log("Vector Job ID from sessionStorage:", jobId);  // 🔍 Debug line
+
+    if (jobId) {
+        window.location.href = `/test-pbn/${jobId}/`;
+    } else {
+        alert("Missing job ID");
+    }
 }
 
-// Start the app
+
+
 
 class FormValidator {
     constructor() {
@@ -305,9 +332,9 @@ class FormValidator {
     }
     validate(data) {
         const errors = [];
-        if (!Utils.validateNumber(data.width, this.rules.minWidth, this.rules.maxWidth)) 
+        if (!Utils.validateNumber(data.width, this.rules.minWidth, this.rules.maxWidth))
             errors.push(`Width must be between ${this.rules.minWidth} and ${this.rules.maxWidth}`);
-        if (!Utils.validateNumber(data.height, this.rules.minHeight, this.rules.maxHeight)) 
+        if (!Utils.validateNumber(data.height, this.rules.minHeight, this.rules.maxHeight))
             errors.push(`Height must be between ${this.rules.minHeight} and ${this.rules.maxHeight}`);
         if (!Utils.validateNumber(data.level_of_details, this.rules.minDetail, this.rules.maxDetail))
             errors.push(`Detail level must be between ${this.rules.minDetail} and ${this.rules.maxDetail}`);

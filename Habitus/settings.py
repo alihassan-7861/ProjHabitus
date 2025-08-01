@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'vectorizer_tool.apps.VectorizerToolConfig',
     'rest_framework',
+    'accounts.apps.AccountsConfig',
+
     
 ]
 
@@ -128,8 +130,9 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_build','static')
 
-MEDIA_URL = '/images/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'static/images')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 
 load_dotenv()
 
@@ -137,3 +140,23 @@ load_dotenv()
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# settings.py
+
+# Max size of entire request body (e.g., 50MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 50 MB
+
+# Max size of each file uploaded (in Django forms)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 50 MB
+
+
+
+
+
+# settings.py
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'habitusproduction@gmail.com'
+EMAIL_HOST_PASSWORD = 'iqbilnupshdnstam'

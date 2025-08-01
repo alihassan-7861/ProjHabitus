@@ -1,15 +1,6 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "Habitus/wsgi.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "runtime": "python3.9"
-      }
-    }
-  ],
+  "buildCommand": "pip install -r requirements.txt && python3.9 manage.py collectstatic --noinput",
   "routes": [
     {
       "src": "/static/(.*)",
@@ -19,6 +10,5 @@
       "src": "/(.*)",
       "dest": "Habitus/wsgi.py"
     }
-  ],
-  "buildCommand": "pip install -r requirements.txt && python3.9 manage.py collectstatic --noinput"
+  ]
 }

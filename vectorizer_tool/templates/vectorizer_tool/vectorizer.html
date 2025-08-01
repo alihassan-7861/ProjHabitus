@@ -6,6 +6,8 @@
 <br>
 <div class="container">
     <!-- Vectorizer Header -->
+         {% csrf_token %}
+
     <header class="header">
             
         <img src="{% static 'images/habitus_logo.png' %}" alt="Habitus Logo" class="logo" />
@@ -20,6 +22,8 @@
         <h3 class="section-title">parameter</h3>
 
         <form class="parameters-form" id="parametersForm">
+                {% csrf_token %}
+
             <div class="parameters-grid">
                 <!-- Width -->
                <!-- Width Dropdown -->

@@ -1,205 +1,188 @@
-import os
-import tempfile
-import string
+from collections import Counter
 import numpy as np
 import cv2
-from PIL import Image, ImageOps
+import svgwrite
+import tempfile
+from django.conf import settings
+from sklearn.metrics import pairwise_distances_argmin_min
+from string import ascii_uppercase
 from shapely.geometry import Polygon, box
-from skimage import measure
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-import math
+from .models import ColorPalette
+import svgwrite
+
+
+def get_palette_colors(name="Habitus Palette"):
+    try:
+        palette = ColorPalette.objects.get(name=name)
+        colors = [c.strip().upper() for c in palette.colors.split(";") if c.strip()]
+        return colors
+    except ColorPalette.DoesNotExist:
+        return []
+
+
+def generate_labels(n):
+    return [f"{ascii_uppercase[i // 10]}{i % 10}" for i in range(n)]
+
+
+HABITUS_PALETTE_HEX = get_palette_colors()
+LABELS = generate_labels(len(HABITUS_PALETTE_HEX))
+HEX_TO_LABEL = {color: label for color, label in zip(HABITUS_PALETTE_HEX, LABELS)}
+HABITUS_PALETTE_BGR = [
+    tuple(reversed(tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))))
+    for h in HABITUS_PALETTE_HEX
+]
+
+LINE_COLOR_BGR = (147, 152, 157)
+LABEL_COLOR_BGR = (161, 158, 194)
+
+
+def rgb_to_hex(rgb):
+    return '#{:02X}{:02X}{:02X}'.format(*rgb)
+
+
+def remap_image_to_palette(image, palette_bgr):
+    h, w = image.shape[:2]
+    flat = image.reshape((-1, 3))
+    palette_np = np.array(palette_bgr)
+    closest_idx = pairwise_distances_argmin_min(flat, palette_np)[0]
+    mapped = palette_np[closest_idx].reshape((h, w, 3))
+    return mapped.astype(np.uint8)
+
+
+def detect_region_color(mapped_img, contour):
+    mask = np.zeros(mapped_img.shape[:2], dtype=np.uint8)
+    cv2.drawContours(mask, [contour], -1, 255, -1)
+    region_pixels = mapped_img[mask == 255]
+    if len(region_pixels) == 0:
+        return None
+    most_common_bgr = Counter([tuple(p) for p in region_pixels]).most_common(1)[0][0]
+    return rgb_to_hex(most_common_bgr[::-1])
+
+
+def fallback_label_center(mask):
+    dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    _, _, _, max_loc = cv2.minMaxLoc(dist)
+    return max_loc
+
 
 def place_label(canv, sketch, label, cx, cy, sx, sy, h_px, label_boxes, poly, offset_x, offset_y):
-    for font_size in range(6, 0, -1):
-        canv.setFont("Helvetica", font_size)
-        text_w = canv.stringWidth(label, "Helvetica", font_size)
+    for font_size in range(10, 0, -1):
+        text_w = font_size * 0.6 * len(label)
         text_h = font_size
+
         label_box_img = box(
-            cx - text_w / (2 * sx),
-            cy - text_h / (2 * sy),
-            cx + text_w / (2 * sx),
-            cy + text_h / (2 * sy)
+            cx - text_w / (2 * sx), cy - text_h / (2 * sy),
+            cx + text_w / (2 * sx), cy + text_h / (2 * sy)
         )
+
         if poly.contains(label_box_img) and all(not label_box_img.intersects(b) for b in label_boxes):
             label_boxes.append(label_box_img)
 
-            canv.drawCentredString(offset_x + cx * sx, offset_y + (h_px - cy) * sy - font_size / 2, label)
+            if canv:
+                text_element = canv.text(
+                    label,
+                    insert=(cx, cy),
+                    font_size=font_size,
+                    font_family="Helvetica",
+                    fill=svgwrite.rgb(*LABEL_COLOR_BGR[::-1]),
+                    text_anchor="middle",
+                    alignment_baseline="middle"
+                )
+                canv.add(text_element)
 
-            font_scale = font_size / 10.0
-            thickness = 1
-            text_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-            text_x = int(cx - text_size[0] / 2)
-            text_y = int(cy + text_size[1] / 2)
+            if sketch is not None:
+                font_scale = font_size / 10.0
+                thickness = 1
+                text_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+                text_x = int(cx - text_size[0] / 2)
+                text_y = int(cy + text_size[1] / 2)
 
-            cv2.rectangle(
-                sketch,
-                (text_x - 1, text_y - text_size[1]),
-                (text_x + text_size[0] + 1, text_y + 2),
-                (255, 255, 255),
-                cv2.FILLED
-            )
-
-            cv2.putText(
-                sketch,
-                label,
-                (text_x, text_y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                font_scale,
-                (0, 0, 0),
-                thickness,
-                cv2.LINE_AA
-            )
+                cv2.rectangle(sketch, (text_x - 1, text_y - text_size[1]),
+                              (text_x + text_size[0] + 1, text_y + 2), (255, 255, 255), cv2.FILLED)
+                cv2.putText(sketch, label, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX,
+                            font_scale, LABEL_COLOR_BGR, thickness, cv2.LINE_AA)
             return True
+
     return False
 
 
-def process_image_to_pbn_pdf(file_obj):
-    PAGE_WIDTH, PAGE_HEIGHT = A4
-    BORDER = 1 * cm
-    INNER_X = BORDER
-    INNER_Y = BORDER
-    INNER_WIDTH = PAGE_WIDTH - 2 * BORDER
-    INNER_HEIGHT = PAGE_HEIGHT - 2 * BORDER
-
-    PALETTE = [
-        "#FFFFFF", "#1A1A1A", "#DADADA", "#999999", "#B7D79A", "#4C8C4A",
-        "#2E472B", "#FDE74C", "#F5C243", "#F28C28", "#C85A27", "#F88379",
-        "#D63E3E", "#8C1C13", "#AED9E0", "#4A90E2", "#1B3B6F", "#3CCFCF",
-        "#FBE3D4", "#D5A97B", "#5C3B28", "#F5E0C3", "#A24B7B", "#FFCFD8"
-    ]
-    letters = string.ascii_uppercase
-    LABEL_MAP = dict(zip([c.lower() for c in PALETTE], [f"{letters[i // 10]}{i % 10}" for i in range(len(PALETTE))]))
-
+def process_image_to_pbn_svg(file_obj):
     image_data = file_obj.read()
     image_array = np.asarray(bytearray(image_data), dtype=np.uint8)
-    src = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    if src is None:
-        raise ValueError("Failed to decode image. Ensure it's a valid PNG or JPEG.")
+    src_bgr = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+    if src_bgr is None:
+        raise ValueError("Failed to decode image")
 
-    h_px, w_px = src.shape[:2]
-    dpi_x = dpi_y = 96
-    px_to_cm_x = 2.54 / dpi_x
-    px_to_cm_y = 2.54 / dpi_y
-    px_to_cm2 = px_to_cm_x * px_to_cm_y
+    h_px, w_px = src_bgr.shape[:2]
+    mapped_img = remap_image_to_palette(src_bgr, HABITUS_PALETTE_BGR)
+    gray = cv2.cvtColor(mapped_img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.bilateralFilter(gray, 9, 75, 75)
+    edges = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                  cv2.THRESH_BINARY_INV, 11, 2)
+    edges = cv2.dilate(edges, np.ones((2, 2), np.uint8), iterations=1)
 
-    original_width_cm = w_px * px_to_cm_x
-    original_height_cm = h_px * px_to_cm_y
-    original_image_area_cm2 = original_width_cm * original_height_cm
-
-    img_ratio = w_px / h_px
-    box_ratio = INNER_WIDTH / INNER_HEIGHT
-    draw_width = INNER_WIDTH if img_ratio > box_ratio else INNER_HEIGHT * img_ratio
-    draw_height = draw_width / img_ratio if img_ratio > box_ratio else INNER_HEIGHT
-
-    sx = draw_width / w_px
-    sy = draw_height / h_px
-    offset_x = INNER_X + (INNER_WIDTH - draw_width) / 2
-    offset_y = INNER_Y + (INNER_HEIGHT - draw_height) / 2
-
-    pdf_path = tempfile.mktemp(suffix=".pdf")
-    canv = canvas.Canvas(pdf_path, pagesize=A4)
-    canv.setStrokeColorRGB(0, 0, 0)
-    canv.setLineWidth(1)
-    canv.rect(INNER_X, INNER_Y, INNER_WIDTH, INNER_HEIGHT)
-
-    label_areas = {}
-    label_dimensions = {}
+    contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    dwg = svgwrite.Drawing(size=(f"{w_px}px", f"{h_px}px"))
     label_boxes = []
-    sketch = np.ones((h_px, w_px, 3), dtype=np.uint8) * 255
+    dynamic_label_index = 0
 
-    for hex_col in PALETTE:
-        bgr = np.array([int(hex_col[i:i + 2], 16) for i in (5, 3, 1)], dtype=np.uint8)
-        mask = cv2.inRange(src, bgr, bgr)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-        contours = measure.find_contours(mask, level=0.5)
+    for cnt in contours:
+        if cv2.contourArea(cnt) < 5:
+            continue
 
-        label = LABEL_MAP[hex_col.lower()]
-        for cnt in contours:
-            if cnt.shape[0] < 4:
-                continue
-            cnt = cnt[:, [1, 0]]
-            epsilon = 0.0015 * cv2.arcLength(cnt.astype(np.float32), True)
-            approx = cv2.approxPolyDP(cnt.astype(np.float32), epsilon, True)[:, 0, :]
-            pixel_area = cv2.contourArea(approx.astype(np.int32))
-            if pixel_area < 50:
-                continue
-            x, y, w, h = cv2.boundingRect(approx.astype(np.int32))
-            if max(w / h, h / w) > 10:
-                continue
-            perimeter = cv2.arcLength(approx.astype(np.float32), True)
-            if 4 * np.pi * pixel_area / (perimeter**2 + 1e-6) < 0.05:
-                continue
+        points = cnt[:, 0, :].tolist()
+        if len(points) < 3:
+            continue
+        if points[0] != points[-1]:
+            points.append(points[0])
 
-            area_cm2 = pixel_area * px_to_cm2
-            width_cm = round(w * px_to_cm_x, 3)
-            height_cm = round(h * px_to_cm_y, 3)
+        poly = Polygon(points)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if poly.is_empty or not poly.is_valid:
+            continue
 
-            if width_cm < 0.1 or height_cm < 0.1:
-                continue
+        cnt_np = np.array(points[:-1], dtype=np.int32)
+        hex_color = detect_region_color(mapped_img, cnt_np) or "#000000"
 
-            label_areas.setdefault(label, []).append(round(area_cm2, 3))
-            label_dimensions.setdefault(label, []).append((width_cm, height_cm))
+        if hex_color not in HEX_TO_LABEL:
+            HEX_TO_LABEL[hex_color] = f"X{dynamic_label_index}"
+            dynamic_label_index += 1
 
-            path = canv.beginPath()
-            path.moveTo(offset_x + approx[0][0] * sx, offset_y + (h_px - approx[0][1]) * sy)
-            for x1, y1 in approx[1:]:
-                path.lineTo(offset_x + x1 * sx, offset_y + (h_px - y1) * sy)
-            path.close()
-            canv.setLineWidth(0.4)
-            canv.drawPath(path)
+        label = HEX_TO_LABEL[hex_color]
 
-            cv2.polylines(sketch, [approx.astype(np.int32)], isClosed=True, color=(0, 0, 0), thickness=1)
+        path_str = "M " + " L ".join([f"{x},{y}" for x, y in cnt_np]) + " Z"
+        dwg.add(dwg.path(
+            d=path_str,
+            stroke=svgwrite.rgb(*LINE_COLOR_BGR[::-1]),
+            fill="none",
+            stroke_width=1
+        ))
 
-            poly = Polygon(approx)
-            m = cv2.moments(approx.astype(np.float32))
-            if m["m00"] == 0:
-                continue
+        m = cv2.moments(cnt_np.astype(np.float32))
+        if m["m00"] != 0:
             cx = int(m["m10"] / m["m00"])
             cy = int(m["m01"] / m["m00"])
+        else:
+            mask = np.zeros((h_px, w_px), dtype=np.uint8)
+            cv2.drawContours(mask, [cnt_np], -1, 255, -1)
+            cx, cy = fallback_label_center(mask)
 
-            place_label(canv, sketch, label, cx, cy, sx, sy, h_px, label_boxes, poly, offset_x, offset_y)
+        placed = place_label(dwg, None, label, cx, cy, 1, 1, h_px, label_boxes, poly, 0, 0)
 
-    canv.setFont("Helvetica-Bold", 6)
-    canv.drawCentredString(PAGE_WIDTH / 2, 0.5 * cm, "Habitus")
-    canv.save()
+        if not placed:
+            # fallback: force place without label overlap check
+            text_element = dwg.text(
+                label,
+                insert=(cx, cy),
+                font_size=5,
+                font_family="Helvetica",
+                fill=svgwrite.rgb(*LABEL_COLOR_BGR[::-1]),
+                text_anchor="middle",
+                alignment_baseline="middle"
+            )
+            dwg.add(text_element)
 
-    jpeg_path = tempfile.mktemp(suffix=".jpeg")
-    cv2.imwrite(jpeg_path, sketch)
-
-    per_label_summary = {}
-    total_label_area_cm2 = 0.0
-
-    # ==== NEW: Box calculation ====
-    box_width_cm = 3.16
-    box_height_cm = 3.16
-    box_area_cm2 = box_width_cm * box_height_cm
-    box_requirements = {}
-
-    for label, areas in label_areas.items():
-        total_area = sum(areas)
-        per_label_summary[label] = {
-            "count": len(areas),
-            "total_area_cm2": round(total_area, 3)
-        }
-        total_label_area_cm2 += total_area
-
-        num_boxes = math.ceil(total_area / box_area_cm2)
-        box_requirements[label] = num_boxes
-
-    # Optional: print box count summary
-    print("\n📦 Box Requirements Per Label:")
-    for label, boxes in box_requirements.items():
-        print(f"🔸 {boxes} {label} boxes required")
-
-    area_summary = {
-        "original_image_width_cm": round(original_width_cm, 3),
-        "original_image_height_cm": round(original_height_cm, 3),
-        "original_image_area_cm2": round(original_image_area_cm2, 3),
-        "labels_total_area_cm2": round(total_label_area_cm2, 3),
-        "per_label_summary": per_label_summary,
-        "box_requirements": box_requirements
-    }
-
-    return pdf_path, jpeg_path, area_summary, label_areas, label_dimensions
+    svg_path = tempfile.mktemp(suffix=".svg")
+    dwg.saveas(svg_path)
+    return svg_path

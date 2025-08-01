@@ -1,4 +1,4 @@
-{% extends 'vectorizer_tool/main.html' %} {% load static %} {% block content %}
+ {% extends 'vectorizer_tool/main.html' %} {% load static %} {% block content %}
 <style>
   :root {
     --accent: #ff503c;
@@ -6,102 +6,66 @@
     --text-light: #ffffff;
   }
 
-  .download-dialog {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    color: var(--text-dark);
-    padding: 25px 35px;
-    border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(60, 35, 30, 0.1);
-    z-index: 9999;
-  }
+ .canvas-size-section {
+  text-align: center;
+  margin: 30px 0;
+}
 
-  .download-dialog.hidden {
-    display: none;
-  }
+.canvas-options {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+#canvasSizeSelector {
+  display: none;
+}
 
-  .download-dialog h3 {
-    margin-bottom: 15px;
-    font-size: 18px;
-  }
+.canvas-box {
+  border: 2px solid #999;
+  border-radius: 10px;
+  padding: 20px 30px;
+  cursor: pointer;
+  position: relative;
+  background: #fff;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  text-align: center;
+}
 
-  .download-dialog label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 15px;
-  }
+.canvas-box:hover {
+  border-color: var(--accent);
+  transform: translateY(-5px);
+}
 
-  .download-dialog button {
-    background: var(--accent);
-    color: var(--text-light);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
+.canvas-box.selected {
+  border-color: var(--accent);
+  background: #f8f8f8;
+}
 
-  .download-dialog button:hover {
-    background: #e6452c;
-    transform: scale(1.05);
-  }
+.canvas-box.selected .canvas-choice {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 13px;
+  box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+}
 
-  .download-section {
-    text-align: center;
-    margin-top: 30px;
-  }
+.canvas-box.popular .canvas-popular {
+  background: #3c231e;
+  color: white;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-top: 8px;
+  display: inline-block;
+}
 
-  .download-btn {
-    background: var(--accent);
-    color: white;
-    padding: 15px 30px;
-    border-radius: 25px;
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .download-btn::before {
-    content: "⬇️";
-    font-size: 1.2rem;
-    transition: transform 0.3s ease;
-  }
-
-  .download-btn::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%);
-    transition: left 0.4s ease;
-    z-index: -1;
-  }
-
-  .download-btn:hover::after {
-    left: 0;
-  }
-
-  .download-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(17, 153, 142, 0.4);
-  }
-
-  .download-btn:hover::before {
-    transform: scale(1.2) rotate(10deg);
-  }
 
   /* NEW: Box Requirements Styles */
   .box-requirements-section {
@@ -204,7 +168,6 @@
     }
   }
 </style>
-
 <div class="container">
   <div class="header">
     <h1 class="page-title">Paint-by-Number PDF Generator</h1>
@@ -224,25 +187,9 @@
       <div class="image-panel">
         <div class="panel-title">Original Image</div>
         <div class="upload-area">
-          <div class="upload-placeholder" id="uploadPlaceholder">
-            <div class="upload-text">Upload Image</div>
-            <div class="upload-subtext">Click to browse or drag and drop</div>
-            <button
-              class="browse-btn"
-              type="button"
-              onclick="triggerImageInput()"
-            >
-              Choose File
-            </button>
-            <p>Supports: JPG, PNG, GIF<br />Max size: 10MB</p>
-          </div>
-          <div class="uploaded-wrapper hidden" id="uploadedWrapper">
-            <img id="uploadedImage" src="" alt="Uploaded image" />
-            <button
-              class="browse-btn"
-              type="button"
-              onclick="triggerImageInput()"
-            >
+         <div class="uploaded-wrapper {% if  vector_url %}shown{% else %}hidden{% endif %}" id="uploadedWrapper">
+            <img id="uploadedImage" src="{{ vector_url }}" alt="Uploaded image" />
+            <button class="browse-btn" type="button" onclick="triggerImageInput()">
               Change Image
             </button>
           </div>
@@ -259,19 +206,16 @@
             <p>
               File generated successfully. Click download button to download!
             </p>
-            <img
-              id="outputPreview"
-              src=""
-              alt="Generated output"
-              style="max-width: 100%; margin-top: 10px"
-            />
+            <object id="outputPreview" type="image/svg+xml" data="" width="100%" height="600px">
+              SVG preview failed.
+            </object>
+
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- NEW: Box Requirements Section -->
   <div class="box-requirements-section hidden" id="boxRequirementsSection">
     <div class="box-requirements-title">Color Box Requirements</div>
     <div class="box-grid" id="boxGrid"></div>
@@ -302,325 +246,405 @@
     </button>
   </div>
 
-  <input
-    type="file"
-    id="imageInput"
-    class="file-input"
-    accept="image/*"
-    onchange="handleFileSelect(event)"
-    style="display: none"
-  />
-
-  <!-- ✅ Dialog appears only when download is clicked -->
-  <div id="downloadDialog" class="download-dialog hidden">
-    <h3>Choose File Format</h3>
-    <label><input type="radio" name="format" value="pdf" checked /> PDF</label
-    ><br />
-    <label><input type="radio" name="format" value="jpeg" /> JPEG</label
-    ><br /><br />
-    <button onclick="downloadInSelectedFormat()">Download</button>
-  </div>
-
-  <!-- ✅ Modified download trigger -->
-  <div class="download-section hidden" id="finalDownloadButtonWrapper">
-    <button class="download-btn" onclick="showDownloadDialog()">
-      Download File
-    </button>
+<div class="canvas-size-section" id="canvasSizeSelector">
+  <p style="margin-bottom: 10px;">Choose your canvas size:</p>
+  <div class="canvas-options">
+    <div class="canvas-box popular" data-size="45x30">
+      <div class="canvas-label">45 × 30 cm</div>
+      <div class="canvas-popular">Deine Wahl</div>
+    </div>
+    <div class="canvas-box popular" data-size="60x40">
+      <div class="canvas-label">60 × 40 cm</div>
+      <div class="canvas-popular">Most popular</div>
+    </div>
+    <div class="canvas-box" data-size="90x60">
+      <div class="canvas-label">90 × 60 cm</div>
+    </div>
   </div>
 </div>
 
+
+<!-- Hidden by default -->
+<div id="pdfDownloadSection" class="canvas-size-section" style="display: none;">
+  <h3>📄 Download Paint-by-Number PDF</h3>
+  <div class="canvas-options">
+    <div class="canvas-box" onclick="downloadPDF('45x30')">
+      <span>Download PDF</span><br><strong>45×30 cm</strong>
+    </div>
+    <div class="canvas-box" onclick="downloadPDF('60x40')">
+      <span>Download PDF</span><br><strong>60×40 cm</strong>
+    </div>
+    <div class="canvas-box" onclick="downloadPDF('90x60')">
+      <span>Download PDF</span><br><strong>90×60 cm</strong>
+    </div>
+  </div>
+</div>
+
+
+
+
+</div>
 <script>
-  const colorPalette = [
-    { hex: "#FFFFFF", name: "White" },
-    { hex: "#1A1A1A", name: "Black" },
-    { hex: "#DADADA", name: "Light Gray" },
-    { hex: "#999999", name: "Medium Gray" },
-    { hex: "#B7D79A", name: "Light Green" },
-    { hex: "#4C8C4A", name: "Medium Green" },
-    { hex: "#2E472B", name: "Dark Green" },
-    { hex: "#FDE74C", name: "Bright Yellow" },
-    { hex: "#F5C243", name: "Golden Yellow" },
-    { hex: "#F28C28", name: "Orange" },
-    { hex: "#C85A27", name: "Dark Orange" },
-    { hex: "#F88379", name: "Light Red" },
-    { hex: "#D63E3E", name: "Medium Red" },
-    { hex: "#8C1C13", name: "Dark Red" },
-    { hex: "#AED9E0", name: "Light Blue" },
-    { hex: "#4A90E2", name: "Medium Blue" },
-    { hex: "#1B3B6F", name: "Dark Blue" },
-    { hex: "#3CCFCF", name: "Cyan" },
-    { hex: "#FBE3D4", name: "Light Peach" },
-    { hex: "#D5A97B", name: "Beige" },
-    { hex: "#5C3B28", name: "Brown" },
-    { hex: "#F5E0C3", name: "Cream" },
-    { hex: "#A24B7B", name: "Purple" },
-    { hex: "#FFCFD8", name: "Light Pink" },
-  ];
 
-  // Store box requirements globally
-  let currentBoxRequirements = {};
+const colorPalette = [
+  { hex: "#FFFFFF", name: "White" },
+  { hex: "#1A1A1A", name: "Black" },
+  { hex: "#DADADA", name: "Light Gray" },
+  { hex: "#999999", name: "Medium Gray" },
+  { hex: "#B7D79A", name: "Light Green" },
+  { hex: "#4C8C4A", name: "Medium Green" },
+  { hex: "#2E472B", name: "Dark Green" },
+  { hex: "#FDE74C", name: "Bright Yellow" },
+  { hex: "#F5C243", name: "Golden Yellow" },
+  { hex: "#F28C28", name: "Orange" },
+  { hex: "#C85A27", name: "Dark Orange" },
+  { hex: "#F88379", name: "Light Red" },
+  { hex: "#D63E3E", name: "Medium Red" },
+  { hex: "#8C1C13", name: "Dark Red" },
+  { hex: "#AED9E0", name: "Light Blue" },
+  { hex: "#4A90E2", name: "Medium Blue" },
+  { hex: "#1B3B6F", name: "Dark Blue" },
+  { hex: "#3CCFCF", name: "Cyan" },
+  { hex: "#FBE3D4", name: "Light Peach" },
+  { hex: "#D5A97B", name: "Beige" },
+  { hex: "#5C3B28", name: "Brown" },
+  { hex: "#F5E0C3", name: "Cream" },
+  { hex: "#A24B7B", name: "Purple" },
+  { hex: "#FFCFD8", name: "Light Pink" },
+];
 
-  function generateLabel(index) {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    return `${letters[Math.floor(index / 10)]}${index % 10}`;
+let currentBoxRequirements = {};
+
+function generateLabel(index) {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return `${letters[Math.floor(index / 10)]}${index % 10}`;
+}
+
+function getContrastColor(hex) {
+  const r = parseInt(hex.substr(1, 2), 16);
+  const g = parseInt(hex.substr(3, 2), 16);
+  const b = parseInt(hex.substr(5, 2), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128 ? "#000" : "#fff";
+}
+
+function showUploadedImage(imageSrc) {
+  const uploadedImage = document.getElementById("uploadedImage");
+  uploadedImage.src = imageSrc;
+  uploadedImage.alt = "Uploaded image";
+
+  document.getElementById("uploadedWrapper").classList.remove("hidden");
+  document.getElementById("uploadPlaceholder").classList.add("hidden");
+  document.getElementById("generateBtn").disabled = false;
+
+  sessionStorage.setItem("vectorizedImage", imageSrc);
+}
+
+function createCompactGrid() {
+  const grid = document.getElementById("compactGrid");
+  colorPalette.forEach((color, index) => {
+    const label = generateLabel(index);
+    const dot = document.createElement("div");
+    dot.className = "color-dot";
+    dot.style.backgroundColor = color.hex;
+    dot.style.color = getContrastColor(color.hex);
+    dot.innerHTML = `${label}<div class="tooltip"><strong>${color.name}</strong><br>${color.hex}<br>Label: ${label}</div>`;
+    grid.appendChild(dot);
+  });
+}
+
+function displayBoxRequirements(boxRequirements) {
+  const boxGrid = document.getElementById("boxGrid");
+  const boxSummary = document.getElementById("boxSummary");
+  boxGrid.innerHTML = "";
+  let totalBoxes = 0;
+
+  const sortedRequirements = Object.entries(boxRequirements).sort(([a], [b]) => a.localeCompare(b));
+
+  sortedRequirements.forEach(([label, boxCount]) => {
+    totalBoxes += boxCount;
+    const colorIndex = colorPalette.findIndex((_, index) => generateLabel(index) === label);
+    const color = colorPalette[colorIndex] || { hex: "#ccc", name: "Unknown" };
+
+    const boxItem = document.createElement("div");
+    boxItem.className = "box-item";
+    boxItem.innerHTML = `
+      <div class="color-preview" style="background-color: ${color.hex}; color: ${getContrastColor(color.hex)}">
+        ${label}
+      </div>
+      <div class="box-info">
+        <div class="box-count">${boxCount} box${boxCount > 1 ? "es" : ""}</div>
+        <div class="box-label">${color.name}</div>
+      </div>
+    `;
+    boxGrid.appendChild(boxItem);
+  });
+
+  boxSummary.innerHTML = `📦 Total Color Boxes Required: <span class="total-highlight">${totalBoxes}</span>`;
+}
+
+function getCookie(name) {
+  return document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(name + "="))
+    ?.split("=")[1] || "";
+}
+
+function generateSkeleton() {
+  const formData = new FormData();
+  formData.append("format", "svg");
+  formData.append("preview", "true");
+
+  const uploadedImg = document.getElementById("uploadedImage");
+  const imgSrc = uploadedImg?.getAttribute("src");
+
+  if (imgSrc) {
+    formData.append("image_url", imgSrc);
+  } else {
+    alert("❌ No image found to upload.");
+    return;
   }
 
-  function getContrastColor(hex) {
-    const r = parseInt(hex.substr(1, 2), 16);
-    const g = parseInt(hex.substr(3, 2), 16);
-    const b = parseInt(hex.substr(5, 2), 16);
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness > 128 ? "#000" : "#fff";
+  document.getElementById("loadingSpinner").classList.remove("hidden");
+  document.getElementById("generateBtn").disabled = true;
+
+  fetch("/generate-pbn/", {
+    method: "POST",
+    headers: { "X-CSRFToken": getCookie("csrftoken") },
+    body: formData,
+  })
+    .then((res) => res.ok ? res.json() : Promise.reject("Generation failed."))
+    .then((data) => {
+  if (data.svg_url || data.svg_file_url) {
+    console.log("✅ SVG generated successfully.");
+
+    // ✅ Show alert message
+    alert("✅ Paint-by-Number image generated successfully!");
+
+    // Optional: log or store job info
+    console.log("SVG URL:", data.svg_file_url);
+    console.log("JPEG URL:", data.jpeg_file_url);
+    console.log("Job ID:", data.job_id);
+
+    // ✅ Optionally enable a download button or store the link somewhere
+   const canvasSelector = document.getElementById("canvasSizeSelector");
+    if (canvasSelector) {
+           canvasSelector.style.display = "block";
+      console.log("✅ canvasSizeSelector revealed.");
+    } else {
+      console.warn("❌ canvasSizeSelector not found.");
+    }
+      document.getElementById("pdfDownloadSection").style.display = "block";
+
+  } else {
+    alert("❌ SVG generation failed.");
   }
 
-  function createCompactGrid() {
-    const grid = document.getElementById("compactGrid");
-    colorPalette.forEach((color, index) => {
-      const label = generateLabel(index);
-      const dot = document.createElement("div");
-      dot.className = "color-dot";
-      dot.style.backgroundColor = color.hex;
-      dot.style.color = getContrastColor(color.hex);
-      dot.innerHTML = `${label}
-            <div class="tooltip">
-                <strong>${color.name}</strong><br>
-                ${color.hex}<br>
-                Label: ${label}
-            </div>`;
-      grid.appendChild(dot);
-    });
-  }
+  // Hide loading and enable buttons
+  document.getElementById("loadingSpinner").classList.add("hidden");
+  document.getElementById("generateBtn").disabled = false;
 
-  function displayBoxRequirements(boxRequirements) {
-    const boxGrid = document.getElementById("boxGrid");
-    const boxSummary = document.getElementById("boxSummary");
 
-    boxGrid.innerHTML = "";
-    let totalBoxes = 0;
 
-    // Sort the box requirements by label for consistent display
-    const sortedRequirements = Object.entries(boxRequirements).sort(
-      ([a], [b]) => a.localeCompare(b)
-    );
+      // if (data.box_requirements && Object.keys(data.box_requirements).length > 0) {
+      //   currentBoxRequirements = data.box_requirements;
+      //   displayBoxRequirements(currentBoxRequirements);
+      //   document.getElementById("boxRequirementsSection").classList.remove("hidden");
+      // } else {
+      //   document.getElementById("boxRequirementsSection").classList.add("hidden");
+      // }
 
-    sortedRequirements.forEach(([label, boxCount]) => {
-      totalBoxes += boxCount;
-
-      // Find the color for this label
-      const colorIndex = colorPalette.findIndex(
-        (_, index) => generateLabel(index) === label
-      );
-      const color = colorPalette[colorIndex] || {
-        hex: "#cccccc",
-        name: "Unknown",
-      };
-
-      const boxItem = document.createElement("div");
-      boxItem.className = "box-item";
-      boxItem.innerHTML = `
-            <div class="color-preview" style="background-color: ${
-              color.hex
-            }; color: ${getContrastColor(color.hex)}">
-                ${label}
-            </div>
-            <div class="box-info">
-                <div class="box-count">${boxCount} box${
-        boxCount > 1 ? "es" : ""
-      }</div>
-                <div class="box-label">${color.name}</div>
-            </div>
-        `;
-      boxGrid.appendChild(boxItem);
-    });
-
-    boxSummary.innerHTML = `📦 Total Color Boxes Required: <span class="total-highlight">${totalBoxes}</span>`;
-  }
-
-  function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const imageDataUrl = e.target.result;
-      sessionStorage.setItem("vectorizedImage", imageDataUrl);
-      document.getElementById("uploadedImage").src = imageDataUrl;
-      document.getElementById("uploadPlaceholder").classList.add("hidden");
-      document.getElementById("uploadedWrapper").classList.remove("hidden");
+      document.getElementById("outputPlaceholder").classList.add("hidden");
+      document.getElementById("outputResult").classList.remove("hidden");
+    })
+    .catch((err) => alert("❌ Error: " + err))
+    .finally(() => {
+      document.getElementById("loadingSpinner").classList.add("hidden");
       document.getElementById("generateBtn").disabled = false;
-    };
-    reader.readAsDataURL(file);
-  }
+    });
+}
 
-  function triggerImageInput() {
-    const input = document.getElementById("imageInput");
-    input.value = "";
-    input.click();
-  }
+// function showDownloadDialog() {
+//   document.getElementById("downloadDialog")?.classList.remove("hidden");
+// }
 
-  function generateSkeleton() {
-    const input = document.getElementById("imageInput");
-    const file = input.files[0];
+// async function downloadInSelectedFormat() {
+//   const format = document.querySelector('input[name="format"]:checked')?.value;
+//   const imageUrl = sessionStorage.getItem("vectorizedImage");
+//   if (!format || !imageUrl) return alert("Please select a format and ensure the image is ready.");
 
-    const formData = new FormData();
-    formData.append("format", "jpeg");
-    formData.append("preview", "true"); // NEW: Add preview flag
+//   document.getElementById("downloadDialog")?.classList.add("hidden");
+//   document.getElementById("loadingSpinner")?.classList.remove("hidden");
 
-    if (file) {
-      formData.append("image", file);
-    } else {
-      const base64 = sessionStorage.getItem("vectorizedImage");
-      if (!base64) {
-        alert("❌ No image found to upload.");
-        return;
-      }
-      formData.append("base64_image", base64);
-    }
+//   const formData = new FormData();
+//   formData.append("format", format);
 
-    document.getElementById("loadingSpinner").classList.remove("hidden");
-    document.getElementById("generateBtn").disabled = true;
+//   try {
+//     const responseImg = await fetch(imageUrl);
+//     const blob = await responseImg.blob();
+//     formData.append("image", new File([blob], "vector_input.png", { type: blob.type }));
 
-    fetch("/generate-pbn/", {
-      method: "POST",
-      body: formData,
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error("Generation failed.");
-        return response.json();
-      })
-      .then((data) => {
-        console.log("📦 Received data:", data); // Debug log
+//     const response = await fetch("/generate-pbn/", {
+//       method: "POST",
+//       headers: { "X-CSRFToken": getCookie("csrftoken") },
+//       body: formData,
+//     });
 
-        // Handle the response - display preview image
-        if (data.image_url) {
-          document.getElementById("outputPreview").src = data.image_url;
-            sessionStorage.setItem("generatedJPEG", data.image_url);
-        }
+//     if (!response.ok) throw new Error("Failed to process image.");
 
-        // Display REAL box requirements from backend
-        if (
-          data.box_requirements &&
-          Object.keys(data.box_requirements).length > 0
-        ) {
-          console.log("📦 Real box requirements:", data.box_requirements); // Debug log
-          currentBoxRequirements = data.box_requirements;
-          displayBoxRequirements(currentBoxRequirements);
-          document
-            .getElementById("boxRequirementsSection")
-            .classList.remove("hidden");
-        } else {
-          console.log("⚠️ No box requirements received from backend");
-          // Only show error message, don't use mock data
-          document
-            .getElementById("boxRequirementsSection")
-            .classList.add("hidden");
-        }
+//     const blobResult = await response.blob();
+//     const blobUrl = window.URL.createObjectURL(blobResult);
+//     const a = document.createElement("a");
+//     a.href = blobUrl;
+//     a.download = format === "pdf" ? "habitus.pdf" : "habitus.jpeg";
+//     document.body.appendChild(a);
+//     a.click();
+//     document.body.removeChild(a);
+//     window.URL.revokeObjectURL(blobUrl);
+//   } catch (error) {
+//     console.error("Download error:", error);
+//     alert("Download failed. Please try again.");
+//   } finally {
+//     document.getElementById("loadingSpinner")?.classList.add("hidden");
+//   }
+// }
+// async function downloadInSelectedFormat() {
+//   const format = document.querySelector('input[name="format"]:checked')?.value;
+//   const imageUrl = window.generatedImageURL;
 
-        document.getElementById("outputPlaceholder").classList.add("hidden");
-        document.getElementById("outputResult").classList.remove("hidden");
-        document
-          .getElementById("finalDownloadButtonWrapper")
-          .classList.remove("hidden");
-      })
-      .catch((err) => {
-        console.error("❌ Generation error:", err);
-        alert("❌ Error: " + err.message);
+//   if (!format || !imageUrl) {
+//     alert("Please select a format and ensure the image is ready.");
+//     return;
+//   }
 
-        // Don't show mock data on error - let user know there's an issue
-        document
-          .getElementById("boxRequirementsSection")
-          .classList.add("hidden");
-      })
-      .finally(() => {
-        document.getElementById("loadingSpinner").classList.add("hidden");
-        document.getElementById("generateBtn").disabled = false;
-      });
-  }
+//   document.getElementById("downloadDialog")?.classList.add("hidden");
+//   document.getElementById("loadingSpinner")?.classList.remove("hidden");
 
-  function showDownloadDialog() {
-    document.getElementById("downloadDialog").classList.remove("hidden");
-  }
+//   if (format === "jpeg" || format === "png") {
+//     const a = document.createElement("a");
+//     a.href = imageUrl;
+//     a.download = `habitus.${format}`;
+//     document.body.appendChild(a);
+//     a.click();
+//     document.body.removeChild(a);
+//     document.getElementById("loadingSpinner")?.classList.add("hidden");
+//   } else if (format === "pdf") {
+//     const formData = new FormData();
+//     formData.append("format", "pdf");
+//     formData.append("image_url", imageUrl); 
 
-  function downloadInSelectedFormat() {
-    const format = document.querySelector('input[name="format"]:checked').value;
-    const input = document.getElementById("imageInput");
-    const file = input.files[0];
+//     try {
+//       const response = await fetch("/generate-pbn/", {
+//         method: "POST",
+//         headers: {
+//           "X-CSRFToken": getCookie("csrftoken"),
+//         },
+//         body: formData,
+//       });
 
-    const formData = new FormData();
-    formData.append("format", format);
-    // Don't add preview flag for actual downloads
+//       if (!response.ok) {
+//         throw new Error(`Download failed with status ${response.status}`);
+//       }
 
-    if (file) {
-      formData.append("image", file);
-    } else {
-      const base64 = sessionStorage.getItem("vectorizedImage");
-      if (!base64) {
-        alert("❌ No image to download.");
-        return;
-      }
-      formData.append("base64_image", base64);
-    }
+//       const blob = await response.blob();
+//       const a = document.createElement("a");
+//       a.href = window.URL.createObjectURL(blob);
+//       a.download = "habitus.pdf";
+//       document.body.appendChild(a);
+//       a.click();
+//       document.body.removeChild(a);
+//     } catch (error) {
+//       alert("Failed to download PDF. Please try again.");
+//       console.error(error);
+//     } finally {
+//       document.getElementById("loadingSpinner")?.classList.add("hidden");
+//     }
+//   }
+// }
 
-    document.getElementById("downloadDialog").classList.add("hidden");
-    document.getElementById("loadingSpinner").classList.remove("hidden");
 
-    fetch("/generate-pbn/", {
-      method: "POST",
-      body: formData,
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error("Download failed.");
-        return response.blob();
-      })
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = format === "pdf" ? "habitus.pdf" : "habitus.jpeg";
-        a.click();
-        URL.revokeObjectURL(url); // Clean up
-      })
-      .catch((err) => alert("❌ Error: " + err.message))
-      .finally(() => {
-        document.getElementById("loadingSpinner").classList.add("hidden");
-      });
-  }
 
-  // Drag and drop functionality
-  document.querySelector(".upload-area").addEventListener("dragover", (e) => {
-    e.preventDefault();
-    e.currentTarget.classList.add("dragover");
-  });
-  document.querySelector(".upload-area").addEventListener("dragleave", (e) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove("dragover");
-  });
-  document.querySelector(".upload-area").addEventListener("drop", (e) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove("dragover");
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type.startsWith("image/")) {
-      document.getElementById("imageInput").files = files;
-      handleFileSelect({ target: { files: files } });
-    }
-  });
-
- document.addEventListener("DOMContentLoaded", () => {
-    createCompactGrid();
-
-    // 🚫 Clear any stored image on page load
-    sessionStorage.removeItem("vectorizedImage");
-    sessionStorage.removeItem("generatedJPEG");
-
-    // 🧹 Reset the UI to default state
-    document.getElementById("uploadPlaceholder").classList.remove("hidden");
-    document.getElementById("uploadedWrapper").classList.add("hidden");
-    document.getElementById("generateBtn").disabled = true;
-    document.getElementById("outputPlaceholder").classList.remove("hidden");
-    document.getElementById("outputResult").classList.add("hidden");
-    document.getElementById("finalDownloadButtonWrapper").classList.add("hidden");
-    document.getElementById("boxRequirementsSection").classList.add("hidden");
+const uploadArea = document.querySelector(".upload-area");
+uploadArea.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  uploadArea.classList.add("dragover");
 });
+uploadArea.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove("dragover");
+});
+uploadArea.addEventListener("drop", (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove("dragover");
+  const files = e.dataTransfer.files;
+  if (files.length > 0 && files[0].type.startsWith("image/")) {
+    document.getElementById("imageInput").files = files;
+    handleFileSelect({ target: { files } });
+  }
+});
+window.addEventListener("DOMContentLoaded", () => {
+  createCompactGrid();  // ← Add this line
+
+  const uploadedImage = document.getElementById("uploadedImage");
+  const generateBtn = document.getElementById("generateBtn");
+
+  if (uploadedImage && uploadedImage.src && !uploadedImage.src.includes("placeholder")) {
+    generateBtn.disabled = false;
+  }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    console.log("DOM fully loaded and parsed");
+
+    const canvasBoxes = document.querySelectorAll(".canvas-box");
+    console.log("Found canvasBoxes:", canvasBoxes.length);
+
+    canvasBoxes.forEach((box, index) => {
+        console.log(`Attaching click handler to canvasBox #${index + 1}`, box);
+        box.addEventListener("click", function () {
+            const size = box.getAttribute("data-size");
+            console.log("Clicked box with data-size:", size);
+            if (!size) {
+                console.warn("No size found on clicked box.");
+                return;
+            }
+
+            const url = `/download-resized-jpeg/?size=${encodeURIComponent(size)}`;
+            console.log("Generated URL for download:", url);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pbn-${size}.jpeg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    });
+});
+
+
+ function downloadPDF(size) {
+    const statusDiv = document.getElementById("download-status");
+    if (statusDiv) statusDiv.textContent = "Preparing PDF…";
+
+    const downloadUrl = `/download-resized-pdf/?size=${size}`;
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `pbn_${size}.pdf`;
+    a.style.display = "none";
+    document.body.appendChild(a);
+
+    setTimeout(() => {
+        a.click();
+        document.body.removeChild(a);
+        if (statusDiv) statusDiv.textContent = `✅ PDF ${size}cm downloading…`;
+    }, 100);
+}
+
 
 </script>
 {% endblock content %}
+
+
+
+
